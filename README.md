@@ -8,7 +8,7 @@
 |---|---|---|
 | **在线版（零下载）** | <https://weatherwind.github.io/EndfieldPic/> | 浏览器直接使用，无需安装，保存为图片下载 |
 | Windows | `EndfieldTextGen-vX.Y.Z-win64.exe` | 单文件（约 47 MB），双击即用 |
-| macOS | `EndfieldTextGen-macos-{arm64,intel}.zip` | 解压得 .app，见下方 Gatekeeper 说明 |
+| macOS | `EndfieldTextGen-vX.Y.Z-macos-arm64.zip` | 解压得 .app，见下方 Gatekeeper 说明（Apple Silicon；Intel 版视 CI 排队情况补充） |
 | Android 8.0+ | `EndfieldTextGen-vX.Y.Z-android.apk` | 约 12.6 MB，安装后从相册选图、结果存入 `Pictures/EndfieldText` |
 | 本地网页 | 直接打开 `web/index.html` | 与在线版同一渲染核心 |
 
