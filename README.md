@@ -6,9 +6,22 @@
 
 | 平台 | 产物 | 说明 |
 |---|---|---|
-| Windows | `dist\终末地白色大字生成器.exe` | 单文件（约 47 MB），双击即用 |
-| Android 8.0+ | `dist\终末地白色大字生成器.apk` | 约 12.6 MB，安装后从相册选图、结果存入 `Pictures/EndfieldText` |
-| 浏览器 | 直接打开 `web/index.html` | 与 APK 同一渲染核心，保存为下载 |
+| **在线版（零下载）** | <https://weatherwind.github.io/EndfieldPic/> | 浏览器直接使用，无需安装，保存为图片下载 |
+| Windows | `EndfieldTextGen-vX.Y.Z-win64.exe` | 单文件（约 47 MB），双击即用 |
+| macOS | `EndfieldTextGen-macos-{arm64,intel}.zip` | 解压得 .app，见下方 Gatekeeper 说明 |
+| Android 8.0+ | `EndfieldTextGen-vX.Y.Z-android.apk` | 约 12.6 MB，安装后从相册选图、结果存入 `Pictures/EndfieldText` |
+| 本地网页 | 直接打开 `web/index.html` | 与在线版同一渲染核心 |
+
+均在 GitHub [Releases](https://github.com/WeatherWind/EndfieldPic/releases) 下载。
+
+### macOS 安装说明
+
+应用未经苹果公证（个人项目不承担年费签名），首次打开若提示"无法验证开发者"：
+
+- 右键 `EndfieldTextGen.app` → 打开 → 再点「打开」；或
+- 终端执行 `xattr -cr /Applications/EndfieldTextGen.app`（若拖入了应用程序目录）。
+
+arm64（M 系列）与 intel 双架构均有构建。
 
 ### 桌面版
 
@@ -42,7 +55,7 @@ python -m PyInstaller --noconfirm --onefile --windowed --name "终末地白色�
 
 ### Android APK
 
-无需 Gradle。前置：JDK 17+、Android SDK（build-tools 35.0.0 与 platforms/android-34，首次可用 sdkmanager 安装）。
+无需 Gradle。前置：JDK 17+、Android SDK（build-tools 35.0.0 与 platforms/android-34，首次可用 sdkmanager 安装）。脚本兼容 Windows（Git Bash）与 Linux/macOS。
 
 ```
 # Linux / macOS / Git Bash
@@ -51,12 +64,17 @@ ANDROID_SDK=<SDK路径> bash android/build_apk.sh [版本名] [版本号]
 
 脚本流程：aapt2 编译链接 → javac → d8（注意：build-tools 34 的 d8 存在 NPE bug，须用 35 的 d8.jar）→ zipalign → apksigner 签名。签名密钥 `android/release.keystore`（alias `endfield`，密码 `endfield2026`）随仓库保存以便复现构建，正式项目请勿效仿。
 
+### CI 自动构建
+
+`.github/workflows/build.yml`：推送 `v*` 标签或手动触发时，在 GitHub Actions 上同时构建 Windows exe、macOS（arm64/intel）.app、Android APK 并上传为 artifacts。`.github/workflows/pages.yml`：`web/` 变更自动部署到 GitHub Pages。
+
 ## 字体说明
 
 终末地游戏内文字使用 HarmonyOS Sans（社区共识，另含思源黑体）；标题大字的超粗风格以 Black 字重还原（社区亦指出接近方正兰亭大黑简的厚重感，Black 为最接近的可自由分发替代）。字体版权归华为所有，随 [HarmonyOS Sans 官方发布](https://developer.huawei.com/consumer/cn/design/resource-V1/) 免费商用，授权文本见 `app/fonts/LICENSE.txt`。APK 内为 [fonttools](https://github.com/fonttools/fonttools) 转换的 woff2 版本。
 
 ## 版本历史
 
+- **v1.2.0**：macOS 版（GitHub Actions 云构建，arm64/intel 双架构）；GitHub Pages 在线版（零下载使用）；三平台 CI 自动构建。
 - **v1.1.0**：大尺寸图片支持（降采样预览 + 全分辨率导出 + EXIF 摆正）；新增 Android APK 与网页版；建立版本控制。
 - **v1.0.0**：桌面版首发（HarmonyOS Sans 大字合成，GUI + 命令行）。
 

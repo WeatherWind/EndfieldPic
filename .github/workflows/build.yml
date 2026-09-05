@@ -1,0 +1,83 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  windows:
+    name: Windows exe
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install pillow pyinstaller
+      - name: Build exe
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name "EndfieldTextGen"
+          --add-binary "app/fonts/*.ttf;fonts"
+          app/endfield_textgen.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EndfieldTextGen-windows-x64
+          path: dist/EndfieldTextGen.exe
+
+  macos:
+    name: macOS app (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - { os: macos-13, arch: intel }
+          - { os: macos-latest, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install pillow pyinstaller
+      - name: Build .app
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name "EndfieldTextGen"
+          --add-binary "app/fonts/*.ttf:fonts"
+          app/endfield_textgen.py
+      - name: Ad-hoc codesign（否则 Apple Silicon 拒绝运行）
+        run: codesign --force --deep -s - dist/EndfieldTextGen.app
+      - name: Zip
+        run: cd dist && zip -q -r EndfieldTextGen-macos-${{ matrix.arch }}.zip EndfieldTextGen.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EndfieldTextGen-macos-${{ matrix.arch }}
+          path: dist/EndfieldTextGen-macos-${{ matrix.arch }}.zip
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "build-tools;35.0.0" "platforms;android-34" >/dev/null
+      - name: Build APK
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          case "$VER" in
+            "$GITHUB_REF_NAME") VER="1.2.0" ;;  # 无 v 前缀（如 main / dispatch）
+          esac
+          ANDROID_SDK="$ANDROID_HOME" bash android/build_apk.sh "$VER" "$GITHUB_RUN_NUMBER"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EndfieldTextGen-android
+          path: dist/EndfieldTextGen-*-android.apk
