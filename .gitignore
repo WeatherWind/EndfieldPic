@@ -1,0 +1,18 @@
+# 构建产物（通过 android/build_apk.sh / PyInstaller 重新生成，或从 GitHub Releases 下载）
+dist/
+android/build/
+build/
+*.spec
+
+# 本地工具链缓存（构建 APK 所需，见 README）
+.android-sdk/
+.jre17/
+cmdtools.zip
+
+# Python
+__pycache__/
+*.pyc
+
+# 本地测试产物
+app/_*
+._*
