@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>终末地风格白色大字生成器</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #14161a; color: #e8e8e8;
+    font-family: "HOS-Medium", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    padding: 12px max(12px, env(safe-area-inset-left)) 24px;
+  }
+  h1 { font-family: "HOS-Black", sans-serif; font-size: 18px; letter-spacing: 2px; margin: 4px 0 12px; }
+  h1 small { display: block; font-family: "HOS-Medium", sans-serif; font-size: 10px; color: #8a9097; letter-spacing: 4px; margin-top: 2px; }
+  #stage { width: 100%; background: #0d0e10; border-radius: 8px; display: block; }
+  .row { margin: 10px 0; }
+  label.t { display: block; font-size: 12px; color: #aab1b8; margin-bottom: 4px; }
+  input[type=text] {
+    width: 100%; padding: 10px 12px; font-size: 16px; border: 1px solid #2e343b;
+    border-radius: 6px; background: #22262b; color: #fff; outline: none;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  select, input[type=file] {
+    width: 100%; padding: 10px; border: 1px solid #2e343b; border-radius: 6px;
+    background: #22262b; color: #fff; font-size: 14px;
+  }
+  input[type=range] { width: 100%; accent-color: #e8b34b; }
+  .slider label.t { display: flex; justify-content: space-between; }
+  .checks { display: flex; gap: 18px; font-size: 14px; align-items: center; }
+  .checks input { accent-color: #e8b34b; width: 17px; height: 17px; vertical-align: -3px; margin-right: 5px; }
+  .btns { display: flex; gap: 10px; margin-top: 14px; }
+  button {
+    flex: 1; padding: 13px; font-size: 15px; border: 0; border-radius: 6px;
+    background: #e8b34b; color: #14161a; font-weight: 700; letter-spacing: 2px;
+  }
+  button.ghost { background: #2e343b; color: #fff; flex: 0 0 auto; padding: 13px 20px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%);
+    background: #e8b34b; color: #14161a; padding: 10px 18px; border-radius: 6px;
+    font-size: 14px; opacity: 0; transition: opacity .3s; pointer-events: none; max-width: 86vw;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<h1>终末地风格大字生成器<small>ARKNIGHTS: ENDFIELD STYLE</small></h1>
+<canvas id="stage" width="16" height="9"></canvas>
+
+<div class="row btns" style="margin-top:12px">
+  <button class="ghost" onclick="document.getElementById('file').click()">选择图片</button>
+  <button id="saveBtn" onclick="save()">保存图片</button>
+</div>
+<input type="file" id="file" accept="image/*" style="display:none" onchange="onPick(this)">
+
+<div class="row">
+  <label class="t">大字（支持回车换行）</label>
+  <textarea id="mainText" rows="2" style="width:100%;padding:10px 12px;font-size:16px;border:1px solid #2e343b;border-radius:6px;background:#22262b;color:#fff;outline:none;resize:vertical">这片大地</textarea>
+</div>
+<div class="row">
+  <label class="t">副标题（可选小字）</label>
+  <input type="text" id="subText" value="ARKNIGHTS: ENDFIELD">
+</div>
+
+<div class="grid">
+  <div class="row">
+    <label class="t">字重</label>
+    <select id="weight">
+      <option value="Black" selected>Black（终末地大字）</option>
+      <option value="Bold">Bold（标题）</option>
+      <option value="Medium">Medium（常规）</option>
+    </select>
+  </div>
+  <div class="row">
+    <label class="t">导出格式</label>
+    <select id="fmt">
+      <option value="jpg" selected>JPG（推荐，体积小）</option>
+      <option value="png">PNG（无损）</option>
+    </select>
+  </div>
+</div>
+
+<div class="slider row"><label class="t">字号（占高比 %）<span id="vSize">18</span></label>
+  <input type="range" id="size" min="8" max="40" step="0.5" value="18"></div>
+<div class="slider row"><label class="t">垂直位置 %（0 顶 100 底）<span id="vPos">45</span></label>
+  <input type="range" id="pos" min="0" max="100" step="1" value="45"></div>
+<div class="slider row"><label class="t">字距 %<span id="vTrack">2</span></label>
+  <input type="range" id="track" min="0" max="15" step="0.5" value="2"></div>
+<div class="slider row"><label class="t">副标题字号 %<span id="vSub">3.2</span></label>
+  <input type="range" id="subsize" min="1" max="12" step="0.2" value="3.2"></div>
+
+<div class="checks row">
+  <label><input type="checkbox" id="crop169">裁剪为16:9</label>
+  <label><input type="checkbox" id="shadow" checked>阴影</label>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const FONTS = {
+  Black:  "HarmonyOS_Sans_SC_Black.woff2",
+  Bold:   "HarmonyOS_Sans_SC_Bold.woff2",
+  Medium: "HarmonyOS_Sans_SC_Medium.woff2",
+};
+// 移动端 WebView 画布尺寸有上限，超长边按此值等比缩放输出
+const MAX_EDGE = 4096;
+
+const $ = id => document.getElementById(id);
+let srcImage = null;   // 已选原图（Image 对象）
+let renderPending = false;
+
+function toast(msg, ms = 2600) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), ms);
+}
+
+async function loadFonts() {
+  for (const [name, file] of Object.entries(FONTS)) {
+    const ff = new FontFace("HOS-" + name, "url(fonts/" + file + ")");
+    await ff.load();
+    document.fonts.add(ff);
+  }
+}
+
+function onPick(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = () => {
+    srcImage = img;
+    URL.revokeObjectURL(url);
+    render();
+  };
+  img.onerror = () => toast("图片读取失败");
+  img.src = url;
+  input.value = "";
+}
+
+function params() {
+  return {
+    mainText: $("mainText").value,
+    subText: $("subText").value.trim(),
+    weight: $("weight").value,
+    size: parseFloat($("size").value) / 100,
+    pos: parseFloat($("pos").value),
+    track: parseFloat($("track").value) / 100,
+    subsize: parseFloat($("subsize").value) / 100,
+    crop169: $("crop169").checked,
+    shadow: $("shadow").checked,
+  };
+}
+
+function sourceSize(p) {
+  let w = srcImage.naturalWidth, h = srcImage.naturalHeight;
+  if (p.crop169) {
+    const t = 16 / 9;
+    if (Math.abs(w / h - t) > 0.005) {
+      if (w / h > t) w = Math.round(h * t); else h = Math.round(w / t);
+    }
+  }
+  const k = Math.min(1, MAX_EDGE / Math.max(w, h));
+  return [Math.max(Math.round(w * k), 2), Math.max(Math.round(h * k), 2)];
+}
+
+function trackedWidth(ctx, text, tracking) {
+  let w = 0;
+  for (const ch of text) w += ctx.measureText(ch).width + tracking;
+  return Math.max(w - tracking, 0);
+}
+
+function drawTracked(ctx, text, x, y, tracking, fill) {
+  ctx.fillStyle = fill;
+  for (const ch of text) {
+    ctx.fillText(ch, x, y);
+    x += ctx.measureText(ch).width + tracking;
+  }
+}
+
+// 与 Python 版一致的排版：整体垂直缩放系数基于字号
+function render() {
+  if (renderPending) return;
+  renderPending = true;
+  requestAnimationFrame(() => { renderPending = false; doRender(); });
+}
+
+function doRender() {
+  const p = params();
+  const canvas = $("stage");
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#0d0e10";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!srcImage) {
+    // 画布仍为初始 16×9，画占位提示
+    ctx.fillStyle = "#5a6067";
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("请先选择图片", canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const [W, H] = sourceSize(p);
+  if (canvas.width !== W || canvas.height !== H) {
+    canvas.width = W;
+    canvas.height = H;
+  }
+
+  // 原图绘制（含可选 16:9 居中裁剪）
+  const sw = srcImage.naturalWidth, sh = srcImage.naturalHeight;
+  let sx = 0, sy = 0, cw = sw, chh = sh;
+  if (p.crop169) {
+    const t = 16 / 9;
+    if (Math.abs(sw / sh - t) > 0.005) {
+      if (sw / sh > t) { cw = Math.round(sh * t); sx = Math.round((sw - cw) / 2); }
+      else { chh = Math.round(sw / t); sy = Math.round((sh - chh) / 2); }
+    }
+  }
+  ctx.drawImage(srcImage, sx, sy, cw, chh, 0, 0, W, H);
+
+  const lines = p.mainText.split("\n").filter(l => l.trim());
+  if (!lines.length) return;
+
+  const maxW = W * 0.85;
+  const fontOf = size => `${size}px "HOS-${p.weight}", sans-serif`;
+  // 自动缩字
+  let sizes = lines.map(() => H * p.size);
+  for (let i = 0; i < lines.length; i++) {
+    let size = H * p.size;
+    ctx.font = fontOf(size);
+    while (size > 8 && trackedWidth(ctx, lines[i], size * p.track) > maxW) {
+      size = size > 40 ? Math.max(Math.floor(size * 0.96), 8) : size - 1;
+      ctx.font = fontOf(size);
+    }
+    sizes[i] = size;
+  }
+  const lineH = sizes.map(s => s * 1.36);
+  const gap = lineH[0] * 0.18;
+  const totalH = lineH.reduce((a, b) => a + b, 0) + gap * (lines.length - 1);
+
+  let subFontPx = 0, subTracking = 0, subH = 0;
+  if (p.subText) {
+    subFontPx = Math.max(H * p.subsize, 10);
+    subTracking = subFontPx * 0.10;
+    subH = subFontPx * 1.36 + H * 0.02;
+  }
+  const y0 = (H - totalH - subH) * (p.pos / 100);
+
+  ctx.textBaseline = "top";
+  ctx.textAlign = "left";
+
+  // 阴影：先在离屏层绘制文字，再模糊叠加（与 Python 版一致的双通道实现）
+  if (p.shadow && typeof ctx.filter === "string") {
+    const off = document.createElement("canvas");
+    off.width = W; off.height = H;
+    const octx = off.getContext("2d");
+    octx.textBaseline = "top";
+    let y = y0 + H * 0.004;
+    for (let i = 0; i < lines.length; i++) {
+      octx.font = fontOf(sizes[i]);
+      const t = sizes[i] * p.track;
+      drawTracked(octx, lines[i], (W - trackedWidth(octx, lines[i], t)) / 2, y, t, "#fff");
+      y += lineH[i] + gap;
+    }
+    if (p.subText) {
+      octx.font = `${subFontPx}px "HOS-Medium", sans-serif`;
+      const sw2 = trackedWidth(octx, p.subText, subTracking);
+      drawTracked(octx, p.subText, (W - sw2) / 2, y + H * 0.01, subTracking, "#fff");
+    }
+    const blur = Math.max(sizes[0] * 0.045, 3);
+    ctx.save();
+    ctx.filter = `blur(${blur}px)`;
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(off, 0, 0);
+    ctx.restore();
+  }
+
+  // 正式文字
+  let y = y0;
+  for (let i = 0; i < lines.length; i++) {
+    ctx.font = fontOf(sizes[i]);
+    const t = sizes[i] * p.track;
+    drawTracked(ctx, lines[i], (W - trackedWidth(ctx, lines[i], t)) / 2, y, t, "#ffffff");
+    y += lineH[i] + gap;
+  }
+  if (p.subText) {
+    ctx.font = `${subFontPx}px "HOS-Medium", sans-serif`;
+    const sw2 = trackedWidth(ctx, p.subText, subTracking);
+    drawTracked(ctx, p.subText, (W - sw2) / 2, y + H * 0.01, subTracking, "rgba(230,230,230,0.92)");
+  }
+}
+
+function outName(ext) {
+  return "endfield_" + Date.now() + "." + ext;
+}
+
+function canvasBlob(fmt) {
+  return new Promise(res => {
+    if (fmt === "png") $("stage").toBlob(res, "image/png");
+    else $("stage").toBlob(res, "image/jpeg", 0.92);
+  });
+}
+
+function blobToBase64(blob) {
+  return new Promise(res => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(",", 2)[1]);
+    r.readAsDataURL(blob);
+  });
+}
+
+// WebView 内：分块传给原生层写入系统相册
+async function saveViaAndroid(blob, mime, ext) {
+  const saver = window.EndfieldSaver;
+  if (!saver || !saver.saveBegin) return false;
+  const name = outName(ext);
+  const b64 = await blobToBase64(blob);
+  saver.saveBegin(name);
+  saver.saveMimeType(mime);
+  const CHUNK = 512 * 1024;
+  for (let i = 0; i < b64.length; i += CHUNK) saver.saveChunk(b64.slice(i, i + CHUNK));
+  const path = saver.saveEnd();
+  toast("已保存到相册 EndfieldText：" + (path || name), 4000);
+  return true;
+}
+
+async function save() {
+  if (!srcImage) { toast("请先选择图片"); return; }
+  const fmt = $("fmt").value;
+  const mime = fmt === "png" ? "image/png" : "image/jpeg";
+  const blob = await canvasBlob(fmt);
+  if (await saveViaAndroid(blob, mime, fmt)) return;
+  // 普通浏览器：直接下载
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = outName(fmt);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast("已导出 " + a.download);
+}
+
+for (const id of ["mainText", "subText", "weight", "size", "pos", "track", "subsize", "crop169", "shadow"]) {
+  $(id).addEventListener("input", render);
+}
+for (const [vid, sid] of [["vSize", "size"], ["vPos", "pos"], ["vTrack", "track"], ["vSub", "subsize"]]) {
+  $(sid).addEventListener("input", () => $(vid).textContent = $(sid).value);
+}
+
+// 测试钩子：供自动化验证渲染（正常使用无影响）
+window.__setTestImage = src => {
+  const img = new Image();
+  img.onload = () => { srcImage = img; render(); };
+  img.src = src;
+};
+window.__render = render;
+
+loadFonts().then(render).catch(e => toast("字体加载失败：" + e.message));
+</script>
+</body>
+</html>
