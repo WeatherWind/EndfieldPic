@@ -33,7 +33,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - { os: macos-13, arch: intel }
+          - { os: macos-15-intel, arch: intel }
           - { os: macos-latest, arch: arm64 }
     steps:
       - uses: actions/checkout@v4
