@@ -66,10 +66,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - uses: android-actions/setup-android@v3
       - name: Install SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "build-tools;35.0.0" "platforms;android-34" >/dev/null
+          sdkmanager --install "build-tools;35.0.0" "platforms;android-34" >/dev/null
       - name: Build APK
         run: |
           VER="${GITHUB_REF_NAME#v}"
